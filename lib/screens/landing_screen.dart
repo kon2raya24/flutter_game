@@ -54,7 +54,7 @@ class _LandingScreenState extends State<LandingScreen>
                 child: Opacity(
                   opacity: 1,
                   child: Lottie.asset(
-                    'assets/animations/stars.json',
+                    'assets/animations/mountains.json',
                     fit: BoxFit.cover,
                   ),
                 ),

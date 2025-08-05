@@ -96,7 +96,7 @@ class _MemoryGameState extends State<MemoryGame>
   Widget build(BuildContext context) {
     return GestureDetector(
       onPanUpdate: (details) {
-        if (details.delta.dx < 10) {
+        if (details.delta.dx > 10) {
           Navigator.pushReplacementNamed(context, '/selector');
         }
       },
@@ -113,7 +113,7 @@ class _MemoryGameState extends State<MemoryGame>
                     child: Opacity(
                       opacity: 1,
                       child: Lottie.asset(
-                        'assets/animations/stars.json',
+                        'assets/animations/mountains.json',
                         fit: BoxFit.cover,
                       ),
                     ),
@@ -188,7 +188,7 @@ class _MemoryGameState extends State<MemoryGame>
                   child: Opacity(
                     opacity: 1,
                     child: Lottie.asset(
-                      'assets/animations/stars.json',
+                      'assets/animations/mountains.json',
                       fit: BoxFit.cover,
                     ),
                   ),
@@ -477,7 +477,7 @@ class MemoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onPanUpdate: (details) {
-        if (details.delta.dx < 10) {
+        if (details.delta.dx > 10) {
           Navigator.pushReplacementNamed(context, '/selector');
         }
       },

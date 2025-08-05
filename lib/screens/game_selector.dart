@@ -14,7 +14,7 @@ class GameSelector extends StatelessWidget {
           // Background animation
           SizedBox.expand(
             child: Lottie.asset(
-              'assets/animations/stars.json',
+              'assets/animations/mountains.json',
               fit: BoxFit.cover,
               repeat: true,
             ),
