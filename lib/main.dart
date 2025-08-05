@@ -1,5 +1,6 @@
 import 'package:brain_booster_flutter/screens/landing_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'screens/game_selector.dart';
 import 'screens/memory_game.dart';
 import 'screens/shape_tap_game.dart';
@@ -8,6 +9,20 @@ import 'services/ad_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ← hide both status bar and nav bar in an "immersive" way
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
+  // paint the system bars as transparent
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      systemNavigationBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+  );
+
   AdService.initialize();
   runApp(const MyApp());
 }

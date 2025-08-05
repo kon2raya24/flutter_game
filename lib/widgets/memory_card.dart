@@ -1,6 +1,5 @@
 // memory_card.dart
 import 'dart:math';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class MemoryCard extends StatefulWidget {
@@ -98,7 +97,7 @@ class _MemoryCardState extends State<MemoryCard>
   Widget _buildBack(BuildContext context) {
     return Container(
       decoration: _cardDecoration(
-        Theme.of(context).colorScheme.primary.withOpacity(0.3),
+        Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
       ),
       alignment: Alignment.center,
       child: const Text(
@@ -115,7 +114,7 @@ class _MemoryCardState extends State<MemoryCard>
       boxShadow: const [
         BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 4)),
       ],
-      border: Border.all(color: Colors.white.withOpacity(0.4), width: 1),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1),
     );
   }
 }

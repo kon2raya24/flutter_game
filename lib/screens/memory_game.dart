@@ -1,7 +1,20 @@
-import 'package:brain_booster_flutter/widgets/memory_card.dart';
-import 'package:flutter/material.dart';
 import 'dart:math';
+import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
+
+extension ColorUtils on Color {
+  Color darken([double amount = .1]) {
+    assert(amount >= 0 && amount <= 1);
+
+    final hsl = HSLColor.fromColor(this);
+
+    // 2) clamp() returns num, so convert to double
+    final newLightness = (hsl.lightness - amount).clamp(0.0, 1.0).toDouble();
+
+    final darkerHsl = hsl.withLightness(newLightness);
+    return darkerHsl.toColor();
+  }
+}
 
 class MemoryGame extends StatefulWidget {
   const MemoryGame({super.key});
@@ -10,8 +23,26 @@ class MemoryGame extends StatefulWidget {
   State<MemoryGame> createState() => _MemoryGameState();
 }
 
-class _MemoryGameState extends State<MemoryGame> with TickerProviderStateMixin {
-  final List<String> _emojis = [
+class _MemoryGameState extends State<MemoryGame>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _buttonController;
+
+  @override
+  void initState() {
+    super.initState();
+    _buttonController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _buttonController.dispose();
+    super.dispose();
+  }
+
+  static const _allEmojis = [
     '🐶',
     '🐱',
     '🐭',
@@ -28,110 +59,254 @@ class _MemoryGameState extends State<MemoryGame> with TickerProviderStateMixin {
     '🐸',
     '🐵',
     '🐔',
-    '🐧',
-    '🐦',
-    '🐤',
     '🦄',
+    '🐝',
+    '🐢',
+    '🐬',
+    '🐙',
+    '🦀',
+    '🐞',
+    '🦋',
+    '🌷',
+    '🌹',
+    '🌻',
+    '🌼',
+    '🌸',
+    '🌵',
+    '🍄',
+    '🌲',
+    '🌈',
+    '⭐️',
+    '⚽️',
+    '🏀',
+    '🎲',
+    '🎯',
+    '🎵',
+    '🎸',
   ];
 
   List<String> _shuffledEmojis = [];
   List<bool> _isFlipped = [];
   List<bool> _isMatched = [];
-  int? _selectedIndex;
-  bool _canTap = true;
+
+  int? _firstSelectedIndex;
+  int _moves = 0;
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showLevelDialog();
-    });
-  }
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final totalCards = _shuffledEmojis.length;
 
-  void _generateBoard(int pairCount) {
-    final selected = _emojis.take(pairCount).toList();
-    _shuffledEmojis = [...selected, ...selected]..shuffle();
-    _isFlipped = List.filled(_shuffledEmojis.length, false);
-    _isMatched = List.filled(_shuffledEmojis.length, false);
-    setState(() {
-      _selectedIndex = null;
-    });
+          // 1) No board yet → animated prompt + refresh button
+          if (totalCards == 0) {
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: Opacity(
+                    opacity: 1,
+                    child: Lottie.asset(
+                      'assets/animations/stars.json',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                Center(
+                  child: ScaleTransition(
+                    scale: Tween(begin: 1.0, end: 1.1).animate(
+                      CurvedAnimation(
+                        parent: _buttonController,
+                        curve: Curves.easeInOut,
+                      ),
+                    ),
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFFFF8A65), // coral orange
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 40,
+                          vertical: 16,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        elevation: 10,
+                      ),
+                      onPressed: () {
+                        _showLevelDialog();
+                      },
+                      child: const Text(
+                        "Let's Choose a Level!",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // Padding(
+                //   padding: const EdgeInsets.all(8.0),
+                //   child: ElevatedButton(
+                //     onPressed: _showLevelDialog,
+                //     child: Text(
+                //       'Please select a level',
+                //       style: TextStyle(
+                //         fontSize: 24,
+                //         color: Colors.white,
+                //         fontWeight: FontWeight.bold,
+                //       ),
+                //     ),
+                //   ),
+                // ),
+              ],
+            );
+          }
+
+          // 2) Compute grid shape
+          final (columns, rows) = _calculateGridDimensions(totalCards);
+          const spacing = 8.0;
+          final maxW = constraints.maxWidth;
+          final maxH = constraints.maxHeight;
+
+          // 3) Perfect square sizing
+          final cellSize = min(maxW / columns, maxH / rows);
+          final gridW = cellSize * columns + spacing * (columns - 1);
+          final gridH = cellSize * rows + spacing * (rows - 1);
+
+          // 4) HUD + centered grid
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: Opacity(
+                  opacity: 1,
+                  child: Lottie.asset(
+                    'assets/animations/stars.json',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  children: [
+                    // Fill background color behind SafeArea HUD
+                    SizedBox(
+                      width: double.infinity,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Moves: $_moves',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                            ),
+                          ),
+                          Text(
+                            'Pairs: ${_matchedPairs()}/${totalCards ~/ 2}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.refresh,
+                              color: Colors.white,
+                            ),
+                            onPressed: _showLevelDialog,
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    // Game board
+                    Expanded(
+                      child: Center(
+                        child: SizedBox(
+                          width: gridW,
+                          height: gridH,
+                          child: GridView.builder(
+                            padding: EdgeInsets.zero,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: totalCards,
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: columns,
+                                  crossAxisSpacing: spacing,
+                                  mainAxisSpacing: spacing,
+                                  childAspectRatio: 1, // always squares
+                                ),
+                            itemBuilder: (context, idx) {
+                              return MemoryCard(
+                                emoji: _shuffledEmojis[idx],
+                                flipped: _isFlipped[idx] || _isMatched[idx],
+                                onTap: () => _onCardTap(idx),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   void _showLevelDialog() {
-    final customController = TextEditingController();
-    showDialog(
+    showDialog<void>(
       context: context,
-      barrierDismissible: false,
-      builder: (_) {
+      builder: (context) {
         return AlertDialog(
-          title: const Text("🧠 Select Difficulty"),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          backgroundColor: const Color.fromARGB(0, 255, 255, 255),
+          title: Center(
+            child: Text(
+              'Pick Your Adventure!',
+              style: TextStyle(
+                fontSize: 24,
+                color: Color.fromARGB(255, 255, 255, 255), // coral orange
+                fontWeight: FontWeight.bold,
+                fontFamily: 'ComicSans',
+              ),
+            ),
+          ),
+          contentPadding: EdgeInsets.zero,
           content: SingleChildScrollView(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _generateBoard(4);
-                  },
-                  child: const Text("Easy (4 Pairs)"),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _generateBoard(8);
-                  },
-                  child: const Text("Medium (8 Pairs)"),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _generateBoard(12);
-                  },
-                  child: const Text("Hard (12 Pairs)"),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _generateBoard(20);
-                  },
-                  child: const Text("Extreme (20 Pairs)"),
-                ),
-                const Divider(),
-                TextField(
-                  controller: customController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: "Custom Pairs (max 20)",
-                  ),
-                ),
+                const SizedBox(height: 20),
+
+                _levelTile('Easy', 4, Colors.teal[100]!),
                 const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: () {
-                    int? custom = int.tryParse(customController.text);
-                    if (custom != null && custom > 0 && custom <= 20) {
-                      Navigator.pop(context);
-                      _generateBoard(custom);
-                    } else {
-                      showDialog(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          title: const Text("Invalid Input"),
-                          content: const Text(
-                            "Please enter a number from 1 to 20.",
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text("OK"),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                  },
-                  child: const Text("Start Custom Game"),
-                ),
+
+                _levelTile('Beginner', 8, Colors.lightGreen[800]!),
+                const SizedBox(height: 10),
+
+                _levelTile('Medium', 12, Colors.amber[200]!),
+                const SizedBox(height: 10),
+
+                _levelTile('Hard', 16, Colors.deepOrange[200]!),
+                const SizedBox(height: 10),
+
+                _levelTile('Extreme', 20, Colors.redAccent[100]!),
+                const SizedBox(height: 10),
+
+                _levelTile('Super', 24, Colors.purple[100]!),
+                const SizedBox(height: 10),
+
+                _levelTile('Ultra', 32, Colors.pink[100]!),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -140,184 +315,164 @@ class _MemoryGameState extends State<MemoryGame> with TickerProviderStateMixin {
     );
   }
 
+  Widget _levelTile(String label, int count, Color bgColor) {
+    final emoji = _emojiForLabel(label);
+    return Material(
+      color: bgColor,
+      elevation: 2,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: () {
+          _generateBoard(count);
+          Navigator.pop(context);
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+          child: Row(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 28)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '$label ($count cards)',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'ComicSans',
+                    color: bgColor.darken(0.3),
+                  ),
+                ),
+              ),
+              Icon(Icons.chevron_right, size: 28, color: bgColor.darken(0.4)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 1) Expanded emoji mapper
+  String _emojiForLabel(String label) {
+    switch (label.toLowerCase()) {
+      case 'easy':
+        return '🐣';
+      case 'beginner':
+        return '🦋';
+      case 'medium':
+        return '🌞';
+      case 'hard':
+        return '🔥';
+      case 'extreme':
+        return '🚀';
+      case 'super':
+        return '🦄';
+      case 'ultra':
+        return '🌟';
+      default:
+        return '🎲';
+    }
+  }
+
+  void _generateBoard(int totalTiles) {
+    assert(totalTiles.isEven, 'Total tiles must be even');
+    final rnd = Random();
+    final pairCount = totalTiles ~/ 2;
+
+    final pool = List<String>.from(_allEmojis)..shuffle(rnd);
+    final pairs = pool.take(pairCount).toList();
+
+    _shuffledEmojis = [...pairs, ...pairs]..shuffle(rnd);
+    _isFlipped = List<bool>.filled(totalTiles, false);
+    _isMatched = List<bool>.filled(totalTiles, false);
+    _firstSelectedIndex = null;
+    _moves = 0;
+
+    setState(() {});
+  }
+
   void _onCardTap(int index) {
-    if (!_canTap || _isFlipped[index] || _isMatched[index]) return;
+    if (_isMatched[index] || _isFlipped[index]) return;
 
     setState(() => _isFlipped[index] = true);
 
-    if (_selectedIndex == null) {
-      _selectedIndex = index;
+    if (_firstSelectedIndex == null) {
+      _firstSelectedIndex = index;
     } else {
-      _canTap = false;
-      final prevIndex = _selectedIndex!;
-      if (_shuffledEmojis[prevIndex] == _shuffledEmojis[index]) {
-        Future.delayed(const Duration(milliseconds: 500), () {
-          setState(() {
-            _isMatched[prevIndex] = true;
-            _isMatched[index] = true;
-            _selectedIndex = null;
-            _canTap = true;
-          });
-          _checkWin();
+      setState(() => _moves++);
+      final prev = _firstSelectedIndex!;
+      final matched = _shuffledEmojis[prev] == _shuffledEmojis[index];
+
+      if (matched) {
+        setState(() {
+          _isMatched[prev] = true;
+          _isMatched[index] = true;
         });
       } else {
-        Future.delayed(const Duration(milliseconds: 800), () {
+        Future.delayed(const Duration(milliseconds: 600), () {
           setState(() {
-            _isFlipped[prevIndex] = false;
+            _isFlipped[prev] = false;
             _isFlipped[index] = false;
-            _selectedIndex = null;
-            _canTap = true;
           });
         });
       }
+      _firstSelectedIndex = null;
     }
   }
 
-  void _checkWin() {
-    if (_isMatched.every((m) => m)) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          title: const Text("🎉 You Win!"),
-          content: const Text("Great job! Want to play again?"),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _showLevelDialog();
-              },
-              child: const Text("Play Again"),
-            ),
-          ],
-        ),
-      );
-    }
-  }
+  int _matchedPairs() => _isMatched.where((b) => b).length ~/ 2;
 
-  /// Helper function to find best-fit rows × columns
-  (int columns, int rows) _calculateGridDimensions(int totalCards) {
-    int bestColumns = totalCards;
-    int bestRows = 1;
-    int minDiff = totalCards;
-
-    for (int i = 1; i <= sqrt(totalCards).ceil(); i++) {
-      if (totalCards % i == 0) {
-        int rows = i;
-        int columns = totalCards ~/ i;
-        int diff = (rows - columns).abs();
-        if (diff < minDiff) {
-          minDiff = diff;
-          bestColumns = columns;
-          bestRows = rows;
-        }
+  (int columns, int rows) _calculateGridDimensions(int total) {
+    final root = sqrt(total).floor();
+    for (var cols = root; cols >= 1; cols--) {
+      if (total % cols == 0) {
+        return (cols, total ~/ cols);
       }
     }
-    return (bestColumns, bestRows);
+    return (1, total);
   }
+}
+
+class MemoryCard extends StatelessWidget {
+  final String emoji;
+  final bool flipped;
+  final VoidCallback onTap;
+
+  const MemoryCard({
+    required this.emoji,
+    required this.flipped,
+    required this.onTap,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: const Text("Memory Match"),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _showLevelDialog,
-          ),
-        ],
-      ),
-      body: LayoutBuilder(
+    return GestureDetector(
+      onTap: onTap,
+      child: LayoutBuilder(
         builder: (context, constraints) {
-          final totalCards = _shuffledEmojis.length;
+          final size = constraints.biggest;
+          final fontSize = size.shortestSide * 0.5; // Emoji fills ~50% of tile
 
-          if (totalCards == 0) {
-            return Stack(
-              children: [
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: Opacity(
-                      opacity: 0.2,
-                      child: Lottie.asset(
-                        'assets/animations/stars.json',
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                ),
-                const Center(
-                  child: Text(
-                    "Please select a level",
-                    style: TextStyle(
-                      fontSize: 20,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            decoration: BoxDecoration(
+              color: flipped ? Colors.white : const Color(0xFFFF8A65), // coral
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color.fromARGB(71, 0, 0, 0),
+                  blurRadius: 4,
+                  offset: Offset(2, 2),
                 ),
               ],
-            );
-          }
-
-          final (columns, rows) = _calculateGridDimensions(totalCards);
-          const spacing = 8.0;
-
-          // Calculate max square size that fits both width and height
-          final maxWidth = constraints.maxWidth - spacing * (columns - 1);
-          final maxHeight = constraints.maxHeight - spacing * (rows - 1);
-          final cardSize = min(maxWidth / columns, maxHeight / rows);
-
-          final gridWidth = columns * cardSize + spacing * (columns - 1);
-          final gridHeight = rows * cardSize + spacing * (rows - 1);
-
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: Opacity(
-                    opacity: 0.2,
-                    child: Lottie.asset(
-                      'assets/animations/stars.json',
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
+            ),
+            child: Center(
+              child: Text(
+                flipped ? emoji : '',
+                style: TextStyle(fontSize: fontSize),
               ),
-              Center(
-                child: SizedBox(
-                  width: gridWidth,
-                  height: gridHeight,
-                  child: GridView.builder(
-                    itemCount: totalCards,
-                    padding: EdgeInsets.zero,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: columns,
-                      crossAxisSpacing: spacing,
-                      mainAxisSpacing: spacing,
-                      childAspectRatio: 1, // ensures square
-                    ),
-                    itemBuilder: (context, index) {
-                      final emoji = _shuffledEmojis[index];
-                      final flipped = _isFlipped[index];
-                      return SizedBox(
-                        width: cardSize,
-                        height: cardSize,
-                        child: MemoryCard(
-                          emoji: emoji,
-                          flipped: flipped,
-                          onTap: () => _onCardTap(index),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ],
+            ),
           );
         },
       ),
