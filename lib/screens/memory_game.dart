@@ -59,11 +59,11 @@ class _MemoryGameState extends State<MemoryGame> with TickerProviderStateMixin {
   }
 
   void _showLevelDialog() {
+    final customController = TextEditingController();
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) {
-        final customController = TextEditingController();
         return AlertDialog(
           title: const Text("🧠 Select Difficulty"),
           content: SingleChildScrollView(
@@ -195,10 +195,29 @@ class _MemoryGameState extends State<MemoryGame> with TickerProviderStateMixin {
     }
   }
 
+  /// Helper function to find best-fit rows × columns
+  (int columns, int rows) _calculateGridDimensions(int totalCards) {
+    int bestColumns = totalCards;
+    int bestRows = 1;
+    int minDiff = totalCards;
+
+    for (int i = 1; i <= sqrt(totalCards).ceil(); i++) {
+      if (totalCards % i == 0) {
+        int rows = i;
+        int columns = totalCards ~/ i;
+        int diff = (rows - columns).abs();
+        if (diff < minDiff) {
+          minDiff = diff;
+          bestColumns = columns;
+          bestRows = rows;
+        }
+      }
+    }
+    return (bestColumns, bestRows);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final crossAxisCount = sqrt(_shuffledEmojis.length).round();
-
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -212,24 +231,25 @@ class _MemoryGameState extends State<MemoryGame> with TickerProviderStateMixin {
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          // Background animation
-          Positioned.fill(
-            child: IgnorePointer(
-              child: Opacity(
-                opacity: 0.2,
-                child: Lottie.asset(
-                  'assets/animations/stars.json',
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final totalCards = _shuffledEmojis.length;
 
-          // Game grid
-          _shuffledEmojis.isEmpty
-              ? const Center(
+          if (totalCards == 0) {
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Opacity(
+                      opacity: 0.2,
+                      child: Lottie.asset(
+                        'assets/animations/stars.json',
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ),
+                const Center(
                   child: Text(
                     "Please select a level",
                     style: TextStyle(
@@ -238,60 +258,60 @@ class _MemoryGameState extends State<MemoryGame> with TickerProviderStateMixin {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                )
-              : Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final totalCards = _shuffledEmojis.length;
-                      int columns;
-                      int rows;
+                ),
+              ],
+            );
+          }
 
-                      // Dynamically decide columns and rows
-                      if (totalCards == 8) {
-                        columns = 4;
-                        rows = 2;
-                      } else if (totalCards == 12) {
-                        columns = 4;
-                        rows = 3;
-                      } else if (totalCards == 16) {
-                        columns = 4;
-                        rows = 4;
-                      } else {
-                        columns = (sqrt(totalCards)).ceil();
-                        rows = (totalCards / columns).ceil();
-                      }
+          final (columns, rows) = _calculateGridDimensions(totalCards);
+          const spacing = 8.0;
+          final cardSize =
+              (min(constraints.maxWidth, constraints.maxHeight) -
+                  spacing * (columns - 1)) /
+              columns;
 
-                      const spacing = 8.0;
-                      final width =
-                          (constraints.maxWidth - (columns - 1) * spacing) /
-                          columns;
-                      final height =
-                          (constraints.maxHeight - (rows - 1) * spacing) / rows;
-                      final aspectRatio = width / height;
-
-                      return GridView.builder(
-                        padding: const EdgeInsets.all(8),
-                        itemCount: totalCards,
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: columns,
-                          crossAxisSpacing: spacing,
-                          mainAxisSpacing: spacing,
-                          childAspectRatio: aspectRatio,
-                        ),
-                        itemBuilder: (context, index) {
-                          final emoji = _shuffledEmojis[index];
-                          final flipped = _isFlipped[index];
-                          return MemoryCard(
-                            emoji: emoji,
-                            flipped: flipped,
-                            onTap: () => _onCardTap(index),
-                          );
-                        },
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Opacity(
+                    opacity: 0.2,
+                    child: Lottie.asset(
+                      'assets/animations/stars.json',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              ),
+              Center(
+                child: SizedBox(
+                  width: columns * cardSize + spacing * (columns - 1),
+                  height: rows * cardSize + spacing * (rows - 1),
+                  child: GridView.builder(
+                    itemCount: totalCards,
+                    padding: EdgeInsets.zero,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      crossAxisSpacing: spacing,
+                      mainAxisSpacing: spacing,
+                      childAspectRatio: 1,
+                    ),
+                    itemBuilder: (context, index) {
+                      final emoji = _shuffledEmojis[index];
+                      final flipped = _isFlipped[index];
+                      return MemoryCard(
+                        emoji: emoji,
+                        flipped: flipped,
+                        onTap: () => _onCardTap(index),
                       );
                     },
                   ),
                 ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
