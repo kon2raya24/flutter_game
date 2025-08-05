@@ -265,10 +265,14 @@ class _MemoryGameState extends State<MemoryGame> with TickerProviderStateMixin {
 
           final (columns, rows) = _calculateGridDimensions(totalCards);
           const spacing = 8.0;
-          final cardSize =
-              (min(constraints.maxWidth, constraints.maxHeight) -
-                  spacing * (columns - 1)) /
-              columns;
+
+          // Calculate max square size that fits both width and height
+          final maxWidth = constraints.maxWidth - spacing * (columns - 1);
+          final maxHeight = constraints.maxHeight - spacing * (rows - 1);
+          final cardSize = min(maxWidth / columns, maxHeight / rows);
+
+          final gridWidth = columns * cardSize + spacing * (columns - 1);
+          final gridHeight = rows * cardSize + spacing * (rows - 1);
 
           return Stack(
             children: [
@@ -285,8 +289,8 @@ class _MemoryGameState extends State<MemoryGame> with TickerProviderStateMixin {
               ),
               Center(
                 child: SizedBox(
-                  width: columns * cardSize + spacing * (columns - 1),
-                  height: rows * cardSize + spacing * (rows - 1),
+                  width: gridWidth,
+                  height: gridHeight,
                   child: GridView.builder(
                     itemCount: totalCards,
                     padding: EdgeInsets.zero,
@@ -295,15 +299,19 @@ class _MemoryGameState extends State<MemoryGame> with TickerProviderStateMixin {
                       crossAxisCount: columns,
                       crossAxisSpacing: spacing,
                       mainAxisSpacing: spacing,
-                      childAspectRatio: 1,
+                      childAspectRatio: 1, // ensures square
                     ),
                     itemBuilder: (context, index) {
                       final emoji = _shuffledEmojis[index];
                       final flipped = _isFlipped[index];
-                      return MemoryCard(
-                        emoji: emoji,
-                        flipped: flipped,
-                        onTap: () => _onCardTap(index),
+                      return SizedBox(
+                        width: cardSize,
+                        height: cardSize,
+                        child: MemoryCard(
+                          emoji: emoji,
+                          flipped: flipped,
+                          onTap: () => _onCardTap(index),
+                        ),
                       );
                     },
                   ),
