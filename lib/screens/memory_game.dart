@@ -94,13 +94,94 @@ class _MemoryGameState extends State<MemoryGame>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final totalCards = _shuffledEmojis.length;
+    return GestureDetector(
+      onPanUpdate: (details) {
+        if (details.delta.dx < 10) {
+          Navigator.pushReplacementNamed(context, '/selector');
+        }
+      },
+      child: Scaffold(
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final totalCards = _shuffledEmojis.length;
 
-          // 1) No board yet → animated prompt + refresh button
-          if (totalCards == 0) {
+            // 1) No board yet → animated prompt + refresh button
+            if (totalCards == 0) {
+              return Stack(
+                children: [
+                  Positioned.fill(
+                    child: Opacity(
+                      opacity: 1,
+                      child: Lottie.asset(
+                        'assets/animations/stars.json',
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  Center(
+                    child: ScaleTransition(
+                      scale: Tween(begin: 1.0, end: 1.1).animate(
+                        CurvedAnimation(
+                          parent: _buttonController,
+                          curve: Curves.easeInOut,
+                        ),
+                      ),
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFFFF8A65), // coral orange
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 40,
+                            vertical: 16,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          elevation: 10,
+                        ),
+                        onPressed: () {
+                          _showLevelDialog();
+                        },
+                        child: const Text(
+                          "Let's Choose a Level!",
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Padding(
+                  //   padding: const EdgeInsets.all(8.0),
+                  //   child: ElevatedButton(
+                  //     onPressed: _showLevelDialog,
+                  //     child: Text(
+                  //       'Please select a level',
+                  //       style: TextStyle(
+                  //         fontSize: 24,
+                  //         color: Colors.white,
+                  //         fontWeight: FontWeight.bold,
+                  //       ),
+                  //     ),
+                  //   ),
+                  // ),
+                ],
+              );
+            }
+
+            // 2) Compute grid shape
+            final (columns, rows) = _calculateGridDimensions(totalCards);
+            const spacing = 8.0;
+            final maxW = constraints.maxWidth;
+            final maxH = constraints.maxHeight;
+
+            // 3) Perfect square sizing
+            final cellSize = min(maxW / columns, maxH / rows);
+            final gridW = cellSize * columns + spacing * (columns - 1);
+            final gridH = cellSize * rows + spacing * (rows - 1);
+
+            // 4) HUD + centered grid
             return Stack(
               children: [
                 Positioned.fill(
@@ -112,150 +193,97 @@ class _MemoryGameState extends State<MemoryGame>
                     ),
                   ),
                 ),
-                Center(
-                  child: ScaleTransition(
-                    scale: Tween(begin: 1.0, end: 1.1).animate(
-                      CurvedAnimation(
-                        parent: _buttonController,
-                        curve: Curves.easeInOut,
-                      ),
-                    ),
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFFF8A65), // coral orange
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 40,
-                          vertical: 16,
+                Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Column(
+                    children: [
+                      // Fill background color behind SafeArea HUD
+                      SizedBox(
+                        width: double.infinity,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Moves: $_moves',
+                              style: const TextStyle(
+                                color: Color(0xFFFF8A65), // coral orange
+                                fontSize: 18,
+                                shadows: [
+                                  Shadow(
+                                    color: Color.fromARGB(255, 0, 0, 0),
+                                    blurRadius: 0,
+                                    offset: Offset(1, 1),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              'Pairs: ${_matchedPairs()}/${totalCards ~/ 2}',
+                              style: const TextStyle(
+                                color: Color(0xFFFF8A65), // coral orange
+                                fontSize: 18,
+                                shadows: [
+                                  Shadow(
+                                    color: Color.fromARGB(255, 0, 0, 0),
+                                    blurRadius: 0,
+                                    offset: Offset(1, 1),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.refresh,
+                                color: Color(0xFFFF8A65), // coral orange
+                                shadows: [
+                                  Shadow(
+                                    color: Color.fromARGB(255, 0, 0, 0),
+                                    blurRadius: 0,
+                                    offset: Offset(1, 1),
+                                  ),
+                                ],
+                              ),
+                              onPressed: _showLevelDialog,
+                            ),
+                          ],
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        elevation: 10,
                       ),
-                      onPressed: () {
-                        _showLevelDialog();
-                      },
-                      child: const Text(
-                        "Let's Choose a Level!",
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                      SizedBox(height: 10),
+                      // Game board
+                      Expanded(
+                        child: Center(
+                          child: SizedBox(
+                            width: gridW,
+                            height: gridH,
+                            child: GridView.builder(
+                              padding: EdgeInsets.zero,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: totalCards,
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: columns,
+                                    crossAxisSpacing: spacing,
+                                    mainAxisSpacing: spacing,
+                                    childAspectRatio: 1, // always squares
+                                  ),
+                              itemBuilder: (context, idx) {
+                                return MemoryCard(
+                                  emoji: _shuffledEmojis[idx],
+                                  flipped: _isFlipped[idx] || _isMatched[idx],
+                                  onTap: () => _onCardTap(idx),
+                                );
+                              },
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-                // Padding(
-                //   padding: const EdgeInsets.all(8.0),
-                //   child: ElevatedButton(
-                //     onPressed: _showLevelDialog,
-                //     child: Text(
-                //       'Please select a level',
-                //       style: TextStyle(
-                //         fontSize: 24,
-                //         color: Colors.white,
-                //         fontWeight: FontWeight.bold,
-                //       ),
-                //     ),
-                //   ),
-                // ),
               ],
             );
-          }
-
-          // 2) Compute grid shape
-          final (columns, rows) = _calculateGridDimensions(totalCards);
-          const spacing = 8.0;
-          final maxW = constraints.maxWidth;
-          final maxH = constraints.maxHeight;
-
-          // 3) Perfect square sizing
-          final cellSize = min(maxW / columns, maxH / rows);
-          final gridW = cellSize * columns + spacing * (columns - 1);
-          final gridH = cellSize * rows + spacing * (rows - 1);
-
-          // 4) HUD + centered grid
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: Opacity(
-                  opacity: 1,
-                  child: Lottie.asset(
-                    'assets/animations/stars.json',
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(
-                  children: [
-                    // Fill background color behind SafeArea HUD
-                    SizedBox(
-                      width: double.infinity,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Moves: $_moves',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                            ),
-                          ),
-                          Text(
-                            'Pairs: ${_matchedPairs()}/${totalCards ~/ 2}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.refresh,
-                              color: Colors.white,
-                            ),
-                            onPressed: _showLevelDialog,
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 10),
-                    // Game board
-                    Expanded(
-                      child: Center(
-                        child: SizedBox(
-                          width: gridW,
-                          height: gridH,
-                          child: GridView.builder(
-                            padding: EdgeInsets.zero,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: totalCards,
-                            gridDelegate:
-                                SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: columns,
-                                  crossAxisSpacing: spacing,
-                                  mainAxisSpacing: spacing,
-                                  childAspectRatio: 1, // always squares
-                                ),
-                            itemBuilder: (context, idx) {
-                              return MemoryCard(
-                                emoji: _shuffledEmojis[idx],
-                                flipped: _isFlipped[idx] || _isMatched[idx],
-                                onTap: () => _onCardTap(idx),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
+          },
+        ),
       ),
     );
   }
@@ -448,6 +476,11 @@ class MemoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      onPanUpdate: (details) {
+        if (details.delta.dx < 10) {
+          Navigator.pushReplacementNamed(context, '/selector');
+        }
+      },
       onTap: onTap,
       child: LayoutBuilder(
         builder: (context, constraints) {
